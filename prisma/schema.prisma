@@ -1,0 +1,233 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  SALES
+  OPERATIONS
+}
+
+enum CompanyStatus {
+  ADAY
+  MUSTERI
+  SICAK
+  SOGUK
+  KAYBEDILDI
+  KAZANILDI
+}
+
+enum OpportunityStage {
+  YENI
+  NITELIKLI
+  DEMO
+  TEKLIF
+  PAZARLIK
+  KAZANILDI
+  KAYBEDILDI
+}
+
+enum MeetingType {
+  TELEFON
+  ONLINE
+  YUZYUZE
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ActivityType {
+  COMPANY_CREATED
+  COMPANY_UPDATED
+  CONTACT_ADDED
+  CONTACT_UPDATED
+  MEETING_CREATED
+  MEETING_UPDATED
+  OPPORTUNITY_CREATED
+  OPPORTUNITY_STAGE_CHANGED
+  TASK_CREATED
+  TASK_COMPLETED
+  NOTE_ADDED
+  FILE_UPLOADED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  phone        String?
+  role         UserRole @default(SALES)
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignedTasks    Task[]
+  createdCompanies Company[]     @relation("CompanyCreator")
+  createdMeetings  Meeting[]
+  createdTasks     Task[]        @relation("TaskCreator")
+  activities       Activity[]
+  notes            Note[]        @relation("NoteCreator")
+  uploadedFiles    CompanyFile[] @relation("FileUploader")
+
+  @@map("users")
+}
+
+model Company {
+  id            String        @id @default(cuid())
+  companyName   String
+  sector        String?
+  region        String?
+  size          String?
+  website       String?
+  phone         String?
+  email         String?
+  address       String?
+  status        CompanyStatus @default(ADAY)
+  lastContactDate DateTime?
+  description   String?       @db.Text
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  createdById   String?
+  createdBy     User?         @relation("CompanyCreator", fields: [createdById], references: [id])
+
+  contacts      Contact[]
+  opportunities Opportunity[]
+  meetings      Meeting[]
+  tasks         Task[]
+  activities    Activity[]
+  notes         Note[]
+  files         CompanyFile[]
+
+  @@map("companies")
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fullName  String
+  position  String?
+  phone     String?
+  email     String?
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  meetings  Meeting[]
+
+  @@map("contacts")
+}
+
+model Opportunity {
+  id         String           @id @default(cuid())
+  companyId  String
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title      String
+  value      Float
+  probability Int             @default(0)
+  stage      OpportunityStage @default(YENI)
+  nextAction String?
+  dueDate    DateTime?
+  notes      String?          @db.Text
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@map("opportunities")
+}
+
+model Meeting {
+  id            String      @id @default(cuid())
+  companyId     String
+  company       Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contactId     String?
+  contact       Contact?    @relation(fields: [contactId], references: [id])
+  createdById   String?
+  createdBy     User?       @relation(fields: [createdById], references: [id])
+  date          DateTime
+  type          MeetingType
+  summary       String?     @db.Text
+  nextStep      String?
+  zoomMeetingId String?
+  zoomJoinUrl   String?
+  zoomStartUrl  String?
+  zoomPassword  String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("meetings")
+}
+
+model Task {
+  id        String     @id @default(cuid())
+  assignedToId String?
+  assignedTo User?    @relation(fields: [assignedToId], references: [id])
+  createdById String?
+  createdBy User?     @relation("TaskCreator", fields: [createdById], references: [id])
+  companyId String?
+  company   Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  title     String
+  dueDate   DateTime?
+  status    TaskStatus @default(TODO)
+  notes     String?    @db.Text
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("tasks")
+}
+
+model Activity {
+  id           String       @id @default(cuid())
+  companyId    String
+  company      Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?        @relation(fields: [userId], references: [id])
+  activityType ActivityType
+  description  String       @db.Text
+  createdAt    DateTime     @default(now())
+
+  @@map("activities")
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation("NoteCreator", fields: [userId], references: [id])
+  title     String?
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notes")
+}
+
+model CompanyFile {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation("FileUploader", fields: [userId], references: [id])
+  fileName    String
+  fileUrl     String
+  fileSize    Int?
+  fileType    String?
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@map("company_files")
+}
+
+
